@@ -3,8 +3,9 @@ import { HomeEntity, PropertyType } from "../entitites/home.entity";
 import { HomeServiceResponseDataDto } from "../dtos/home/home-service-response.dto";
 import { Image } from "../dtos/home/create-home.dto";
 import { ImageEntity } from "../entitites/image.entity";
+import { number } from "zod";
 
-interface GetHomeData {
+interface GetHomeParam {
   city?: string;
   price?: {
     lessThan?: number;
@@ -13,7 +14,7 @@ interface GetHomeData {
   propertyType?: PropertyType;
 }
 
-interface CreateHomeData {
+interface CreateHomeParam {
   address: string;
   numberOfBedrooms: number;
   numberOfBathrooms: number;
@@ -25,6 +26,16 @@ interface CreateHomeData {
   realtorId: number;
 }
 
+interface UpdateHomeParam {
+  address?: string;
+  numberOfBedrooms?: number;
+  numberOfBathrooms?: number;
+  city?: string;
+  price?: number;
+  landSize?: number;
+  propertyType?: PropertyType;
+}
+
 export class HomeService {
   constructor(
     private readonly homeRepository: Repository<HomeEntity>,
@@ -32,7 +43,7 @@ export class HomeService {
   ) {}
 
   public async getHomes(
-    filter: GetHomeData
+    filter: GetHomeParam
   ): Promise<{ statusCode: number; data: HomeServiceResponseDataDto[] }> {
     const homes = await this.homeRepository.find({
       select: {
@@ -43,12 +54,18 @@ export class HomeService {
         propertyType: true,
         numberOfBathrooms: true,
         numberOfBedrooms: true,
+        createdDate: false,
+        updatedDate: false,
+        realtor: {
+          name: true,
+        },
         images: {
           url: true,
         },
       },
       relations: {
         images: true,
+        realtor: true,
       },
       where: {
         city: filter.city,
@@ -61,23 +78,61 @@ export class HomeService {
     });
 
     const fetchHomes = homes.map((home) => {
-      const {
-        images,
-        realtor,
-        realtorId,
-        createdDate,
-        updatedDate,
-        ...orthers
-      } = home;
-      return { ...orthers, image: images[0].url };
+      const { images, ...others }: HomeEntity = home;
+      let image;
+      if (images.length === 0) {
+        image = "img";
+      } else {
+        image = images[0].url;
+      }
+      const fetchHome: HomeServiceResponseDataDto = {
+        ...others,
+        image: image,
+      };
+      return fetchHome;
     });
+
     return { statusCode: 200, data: fetchHomes };
   }
 
-  public async addHome(
-    data: CreateHomeData
+  public async getHomeById(
+    id: number
   ): Promise<{ statusCode: number; data: HomeServiceResponseDataDto }> {
-    console.log(data);
+    const home = await this.homeRepository.findOne({
+      where: { id },
+      select: {
+        id: true,
+        address: true,
+        numberOfBedrooms: true,
+        numberOfBathrooms: true,
+        city: true,
+        landSize: true,
+        propertyType: true,
+        price: true,
+        images: { url: true },
+      },
+      relations: {
+        images: true,
+      },
+    });
+    if (!home) {
+      return { statusCode: 404, data: "Nhà không tồn tại" };
+    }
+    const { images, ...others } = home;
+    console.log(home);
+    let image;
+    if (images.length === 0) {
+      image = "img";
+    } else {
+      image = images[0].url;
+    }
+    const fetchHome: HomeServiceResponseDataDto = { ...others, image };
+    return { statusCode: 200, data: fetchHome };
+  }
+
+  public async addHome(
+    data: CreateHomeParam
+  ): Promise<{ statusCode: number; data: HomeServiceResponseDataDto }> {
     const home = await this.homeRepository.create(data);
     await this.homeRepository.save(home);
     const homeImages = data.images.map(async (image) => {
@@ -85,9 +140,43 @@ export class HomeService {
       await this.imageRepository.save({ ...image, homeId: home.id });
       return { ...image, homeId: home.id };
     });
-    const { images, realtor, realtorId, createdDate, updatedDate, ...orthers } =
+    const { images, realtor, realtorId, createdDate, updatedDate, ...others } =
       home;
-    const fetchHome = { ...orthers, image: images[0].url };
+    const fetchHome = { ...others, image: images[0].url };
+
     return { statusCode: 200, data: fetchHome };
+  }
+
+  public async updateHome(
+    id: number,
+    data: UpdateHomeParam,
+    realtorId: number
+  ): Promise<{ statusCode: number; data: HomeServiceResponseDataDto }> {
+    const home = await this.homeRepository.findOne({ where: { id } });
+    if (!home) {
+      return { statusCode: 404, data: "Home not exist" };
+    }
+    if (home.realtorId !== realtorId) {
+      return { statusCode: 401, data: "Not authorized" };
+    }
+    const homeUpdated = await this.homeRepository.update(id, data);
+    await this.homeRepository.save(home);
+    return this.getHomeById(id);
+  }
+
+  public async deleteHome(
+    id: number,
+    realtorId: number
+  ): Promise<{ statusCode: number; data: HomeServiceResponseDataDto }> {
+    const home = await this.homeRepository.findOne({ where: { id } });
+    if (!home) {
+      return { statusCode: 404, data: "Home not exist" };
+    }
+    if (home.realtorId !== realtorId) {
+      return { statusCode: 401, data: "Not authorized" };
+    }
+    await this.imageRepository.delete({ homeId: id });
+    await this.homeRepository.delete(id);
+    return { statusCode: 200, data: "Delete success" };
   }
 }

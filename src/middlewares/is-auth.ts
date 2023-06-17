@@ -19,18 +19,13 @@ export default (req: Request, res: Response, next: NextFunction) => {
       token,
       process.env.JSON_TOKEN_KEY!
     ) as UserPayload;
-  } catch (error) {
-    let msg;
-    if (error instanceof Error) {
-      msg = error.message;
-    }
-    return res.status(402).json({ status: "fail", msg });
+  } catch (error: any) {
+    return res.status(401).json("Not authorization");
   }
   if (!decodedToken) {
-    return res.status(401).json({ status: "fail", msg: "Token is incorrect" });
+    return res.status(401).json("Token is incorrect");
   }
   req.userId = decodedToken.id;
   req.role = decodedToken.userType;
-  console.log(decodedToken);
   next();
 };

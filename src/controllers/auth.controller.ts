@@ -30,7 +30,6 @@ export class AuthController {
           req.body.productKey!
         );
 
-        console.log(isValidProductKey);
         if (!isValidProductKey) {
           return res.status(401).json("Yêu cầu là trái phép");
         }

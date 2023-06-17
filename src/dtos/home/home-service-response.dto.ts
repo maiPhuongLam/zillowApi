@@ -13,6 +13,6 @@ const homeServiceResponseSChema = z.object({
   propertyType: z.nativeEnum(PropertyType),
 });
 
-export type HomeServiceResponseDataDto = TypeOf<
-  typeof homeServiceResponseSChema
->;
+export type HomeServiceResponseDataDto =
+  | TypeOf<typeof homeServiceResponseSChema>
+  | string;
