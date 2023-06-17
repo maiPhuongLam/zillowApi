@@ -7,7 +7,7 @@ import homeRoute from "./routes/home.route";
 
 dotenv.config();
 const app = express();
-const PORT = 5000;
+const PORT = 10000;
 app.use(cors());
 app.use(express.json());
 
